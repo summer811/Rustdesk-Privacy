@@ -1,0 +1,15 @@
+name: Build Rustdesk Privacy (app)
+
+# Dispatcher for the upstream reusable build workflow. Only the Windows x64
+# artifact is needed for the Rustdesk Privacy installer; the other platform
+# jobs can fail or be cancelled without affecting it.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/flutter-build.yml
+    with:
+      upload-artifact: true
+      upload-tag: "privacy"
+    secrets: inherit
