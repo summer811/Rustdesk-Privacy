@@ -20,12 +20,12 @@ use winapi::{
         minwindef::{DWORD, FALSE, HINSTANCE, HMODULE, LPARAM, LRESULT, TRUE, UINT, WPARAM},
         ntdef::{HANDLE, NULL},
         windef::{HBRUSH, HDC, HFONT, HGDIOBJ, HMENU, HMONITOR, HWND, RECT, SIZE},
+        winerror::ERROR_CLASS_ALREADY_EXISTS,
     },
     um::{
         errhandlingapi::GetLastError,
         libloaderapi::GetModuleHandleW,
         processthreadsapi::GetCurrentThreadId,
-        winerror::ERROR_CLASS_ALREADY_EXISTS,
         wingdi::{
             CreateFontW, CreateSolidBrush, DeleteObject, GetTextExtentPoint32W, SelectObject,
             SetBkMode, SetTextColor, TextOutW, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS,
@@ -458,7 +458,7 @@ fn is_on_input_desktop() -> bool {
         if FALSE
             == GetUserObjectInformationA(
                 window_station as HANDLE,
-                UOI_NAME,
+                UOI_NAME as i32,
                 window_station_name.as_mut_ptr() as *mut _,
                 window_station_name.len() as DWORD,
                 &mut needed,
@@ -483,7 +483,7 @@ fn is_on_input_desktop() -> bool {
         let current_ok = FALSE
             != GetUserObjectInformationA(
                 current as HANDLE,
-                UOI_NAME,
+                UOI_NAME as i32,
                 current_name.as_mut_ptr() as *mut _,
                 current_name.len() as DWORD,
                 &mut needed,
@@ -491,7 +491,7 @@ fn is_on_input_desktop() -> bool {
         let input_ok = FALSE
             != GetUserObjectInformationA(
                 input as HANDLE,
-                UOI_NAME,
+                UOI_NAME as i32,
                 input_name.as_mut_ptr() as *mut _,
                 input_name.len() as DWORD,
                 &mut needed,
