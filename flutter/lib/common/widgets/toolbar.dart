@@ -946,7 +946,7 @@ Future<List<TToggleMenu>> toolbarCursor(
       !pi.isWayland) {
     final state = ShowRemoteCursorState.find(id);
     final lockState = ShowRemoteCursorLockState.find(id);
-    final enabled = !ffiModel.viewOnly;
+    final enabled = true;
     final option = 'show-remote-cursor';
     if (pi.currentDisplay == kAllDisplayValue ||
         bind.sessionIsMultiUiSession(sessionId: sessionId)) {
@@ -965,6 +965,16 @@ Future<List<TToggleMenu>> toolbarCursor(
                     sessionId: sessionId, arg: option);
               }
             : null));
+
+    final touchMode = bind.mainGetLocalOption(key: kOptionTouchMode) == 'true';
+    v.add(TToggleMenu(
+        child: const Text('触摸模式'),
+        value: touchMode,
+        onChanged: (value) {
+          if (value == null) return;
+          bind.mainSetLocalOption(
+              key: kOptionTouchMode, value: value ? 'true' : 'false');
+        }));
   }
   // follow remote cursor
   if (pi.platform != kPeerPlatformAndroid &&

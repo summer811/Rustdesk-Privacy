@@ -5,7 +5,10 @@ use crate::input::*;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::whiteboard;
 use base::message_proto::{
-    pointer_device_event::Union::TouchEvent, touch_event::Union::ScaleUpdate,
+    pointer_device_event,
+    pointer_device_event::Union::TouchEvent,
+    touch_event::Union::ScaleUpdate,
+    TouchInput as TouchInputMsg,
 };
 #[cfg(target_os = "macos")]
 use dispatch::Queue;
@@ -1247,9 +1250,29 @@ pub fn handle_pointer_(evt: &PointerDeviceEvent, conn: i32) {
             }
             _ => {}
         },
+        Some(pointer_device_event::Union::TouchInput(ti)) => handle_touch_input_(ti, conn),
         _ => {}
     }
 }
+
+#[cfg(windows)]
+fn handle_touch_input_(ti: &TouchInputMsg, conn: i32) {
+    if !active_mouse_(conn) || ti.contacts.is_empty() {
+        return;
+    }
+    let count = ti.contacts.len() as i32;
+    let center_x = ti.contacts.iter().map(|c| c.x).sum::<i32>() / count;
+    let center_y = ti.contacts.iter().map(|c| c.y).sum::<i32>() / count;
+    {
+        let mut en = ENIGO.lock().unwrap();
+        en.mouse_move_to(center_x, center_y);
+    }
+    let contacts: Vec<(i32, i32)> = ti.contacts.iter().map(|c| (c.x, c.y)).collect();
+    crate::platform::windows::inject_touch(&contacts, (center_x, center_y), ti.phase);
+}
+
+#[cfg(not(windows))]
+fn handle_touch_input_(_ti: &TouchInputMsg, _conn: i32) {}
 
 pub fn handle_mouse_(
     evt: &MouseEvent,

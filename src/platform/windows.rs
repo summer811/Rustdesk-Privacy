@@ -4992,3 +4992,84 @@ ProcessId=10136
         assert_eq!(pids.len(), 0);
     }
 }
+
+pub fn inject_touch(contacts: &[(i32, i32)], center: (i32, i32), phase: i32) {
+    use std::mem::transmute;
+    use std::sync::Once;
+    use winapi::shared::windef::{POINT, RECT};
+    use winapi::um::libloaderapi::{GetModuleHandleA, GetProcAddress};
+    use winapi::um::winuser::{
+        GetCursorPos, POINTER_FLAG_DOWN, POINTER_FLAG_INCONTACT, POINTER_FLAG_INRANGE,
+        POINTER_FLAG_UPDATE, POINTER_FLAG_UP, POINTER_TOUCH_INFO, PT_TOUCH,
+        TOUCH_FEEDBACK_DEFAULT, TOUCH_FLAG_NONE, TOUCH_MASK_CONTACTAREA, TOUCH_MASK_ORIENTATION,
+        TOUCH_MASK_PRESSURE,
+    };
+
+    let user32 = unsafe { GetModuleHandleA(b"user32.dll\0".as_ptr() as *const _) };
+    if user32.is_null() {
+        return;
+    }
+
+    static INIT_TOUCH: Once = Once::new();
+    INIT_TOUCH.call_once(|| {
+        let init =
+            unsafe { GetProcAddress(user32, b"InitializeTouchInjection\0".as_ptr() as *const _) };
+        if !init.is_null() {
+            let init: unsafe extern "system" fn(u32, u32) -> i32 = unsafe { transmute(init) };
+            unsafe {
+                init(10, TOUCH_FEEDBACK_DEFAULT);
+            }
+        }
+    });
+
+    let inject = unsafe { GetProcAddress(user32, b"InjectTouchInput\0".as_ptr() as *const _) };
+    if inject.is_null() {
+        return;
+    }
+    let inject: unsafe extern "system" fn(u32, *const POINTER_TOUCH_INFO) -> i32 =
+        unsafe { transmute(inject) };
+
+    let mut cursor = POINT { x: 0, y: 0 };
+    unsafe {
+        if GetCursorPos(&mut cursor) == 0 {
+            return;
+        }
+    }
+
+    let mut infos = Vec::with_capacity(contacts.len());
+    for (id, (x, y)) in contacts.iter().enumerate() {
+        let sx = cursor.x + (*x - center.0);
+        let sy = cursor.y + (*y - center.1);
+        let mut info: POINTER_TOUCH_INFO = unsafe { std::mem::zeroed() };
+        info.pointerInfo.pointerType = PT_TOUCH;
+        info.pointerInfo.pointerId = id as u32;
+        info.pointerInfo.ptPixelLocation = POINT { x: sx, y: sy };
+        info.pointerInfo.ptPixelLocationRaw = POINT { x: sx, y: sy };
+        info.pointerInfo.pointerFlags = match phase {
+            0 => POINTER_FLAG_DOWN | POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT,
+            1 => POINTER_FLAG_UPDATE | POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT,
+            _ => POINTER_FLAG_UP,
+        };
+        info.touchFlags = TOUCH_FLAG_NONE;
+        info.touchMask = TOUCH_MASK_CONTACTAREA | TOUCH_MASK_ORIENTATION | TOUCH_MASK_PRESSURE;
+        info.rcContact = RECT {
+            left: sx - 4,
+            top: sy - 4,
+            right: sx + 4,
+            bottom: sy + 4,
+        };
+        info.rcContactRaw = RECT {
+            left: sx - 4,
+            top: sy - 4,
+            right: sx + 4,
+            bottom: sy + 4,
+        };
+        info.orientation = 0;
+        info.pressure = 32000;
+        infos.push(info);
+    }
+
+    unsafe {
+        inject(infos.len() as u32, infos.as_ptr());
+    }
+}

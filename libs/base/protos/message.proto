@@ -187,9 +187,22 @@ message TouchEvent {
   }
 }
 
+message TouchContact {
+  int32 id = 1;
+  int32 x = 2;
+  int32 y = 3;
+}
+
+message TouchInput {
+  repeated TouchContact contacts = 1;
+  // 0: down, 1: update, 2: up
+  int32 phase = 2;
+}
+
 message PointerDeviceEvent {
   oneof union {
     TouchEvent touch_event = 1;
+    TouchInput touch_input = 3;
   }
   repeated ControlKey modifiers = 2;
 }

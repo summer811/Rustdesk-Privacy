@@ -1,7 +1,7 @@
 use crate::{
     common::{get_supported_keyboard_modes, is_keyboard_mode_supported},
     input::{
-        MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_TYPE_DOWN, MOUSE_TYPE_MASK,
+        MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_TYPE_DOWN, MOUSE_TYPE_MASK, MOUSE_TYPE_MOVE,
         MOUSE_TYPE_TRACKPAD, MOUSE_TYPE_UP, MOUSE_TYPE_WHEEL,
     },
     ui_interface::use_texture_render,
@@ -34,7 +34,7 @@ use std::{
     ops::{Deref, DerefMut},
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering},
         Arc, Mutex, RwLock,
     },
     time::SystemTime,
@@ -57,6 +57,11 @@ use crate::{client::Data, client::Interface};
 mod mobile_wheel;
 
 const CHANGE_RESOLUTION_VALID_TIMEOUT_SECS: u64 = 15;
+
+static TOUCH_ACTIVE: AtomicBool = AtomicBool::new(false);
+static TOUCH_PINCH: AtomicBool = AtomicBool::new(false);
+static TOUCH_START_X: AtomicI32 = AtomicI32::new(0);
+static TOUCH_START_Y: AtomicI32 = AtomicI32::new(0);
 
 #[derive(Clone, Default)]
 pub struct Session<T: InvokeUiSession> {
@@ -1221,6 +1226,21 @@ impl<T: InvokeUiSession> Session<T> {
         send_pointer_device_event(evt, alt, ctrl, shift, command, self);
     }
 
+    pub fn send_touch_input(&self, contacts: &[(i32, i32)], phase: i32) {
+        let mut touch_input = TouchInput::new();
+        for (id, (x, y)) in contacts.iter().enumerate() {
+            let mut contact = TouchContact::new();
+            contact.id = id as i32;
+            contact.x = *x;
+            contact.y = *y;
+            touch_input.contacts.push(contact);
+        }
+        touch_input.phase = phase;
+        let mut evt = PointerDeviceEvent::new();
+        evt.set_touch_input(touch_input);
+        send_pointer_device_event(evt, false, false, false, false, self);
+    }
+
     #[inline]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn is_scroll_reverse_mode(&self) -> bool {
@@ -1282,6 +1302,58 @@ impl<T: InvokeUiSession> Session<T> {
                 } else {
                     mask = (mask & (!(MOUSE_BUTTON_RIGHT << 3))) | (MOUSE_BUTTON_LEFT << 3);
                 }
+            }
+        }
+
+        if crate::common::get_local_option("touch-mode") == "true" {
+            let buttons = mask >> 3;
+            if buttons == MOUSE_BUTTON_LEFT {
+                match event_type {
+                    MOUSE_TYPE_DOWN => {
+                        TOUCH_START_X.store(x, Ordering::SeqCst);
+                        TOUCH_START_Y.store(y, Ordering::SeqCst);
+                        if ctrl {
+                            TOUCH_PINCH.store(true, Ordering::SeqCst);
+                            TOUCH_ACTIVE.store(false, Ordering::SeqCst);
+                            self.send_touch_input(&[(x - 40, y), (x + 40, y)], 0);
+                        } else {
+                            TOUCH_ACTIVE.store(true, Ordering::SeqCst);
+                            TOUCH_PINCH.store(false, Ordering::SeqCst);
+                            self.send_touch_input(&[(x, y)], 0);
+                        }
+                        return;
+                    }
+                    MOUSE_TYPE_MOVE => {
+                        if TOUCH_PINCH.load(Ordering::SeqCst) {
+                            let sx = TOUCH_START_X.load(Ordering::SeqCst);
+                            let sy = TOUCH_START_Y.load(Ordering::SeqCst);
+                            let d = 40 + (x - sx).abs() + (y - sy).abs();
+                            self.send_touch_input(&[(sx - d, sy), (sx + d, sy)], 1);
+                            return;
+                        }
+                        if TOUCH_ACTIVE.load(Ordering::SeqCst) {
+                            self.send_touch_input(&[(x, y)], 1);
+                            return;
+                        }
+                    }
+                    MOUSE_TYPE_UP => {
+                        if TOUCH_PINCH.swap(false, Ordering::SeqCst) {
+                            let sx = TOUCH_START_X.load(Ordering::SeqCst);
+                            let sy = TOUCH_START_Y.load(Ordering::SeqCst);
+                            let d = 40 + (x - sx).abs() + (y - sy).abs();
+                            self.send_touch_input(&[(sx - d, sy), (sx + d, sy)], 2);
+                            return;
+                        }
+                        if TOUCH_ACTIVE.swap(false, Ordering::SeqCst) {
+                            self.send_touch_input(&[(x, y)], 2);
+                            return;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if event_type == MOUSE_TYPE_MOVE && buttons == 0 {
+                return;
             }
         }
 

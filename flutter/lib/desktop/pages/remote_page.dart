@@ -983,6 +983,7 @@ class _RemotePageState extends State<RemotePage>
                         cursorOverImage: _cursorOverImage,
                         keyboardEnabled: _keyboardEnabled,
                         remoteCursorMoved: _remoteCursorMoved,
+                        showRemoteCursor: _showRemoteCursor,
                         listenerBuilder: (child) =>
                             _buildRawTouchAndPointerRegion(
                                 child, enterView, leaveView),
@@ -1088,6 +1089,7 @@ class ImagePaint extends StatefulWidget {
   final RxBool cursorOverImage;
   final RxBool keyboardEnabled;
   final RxBool remoteCursorMoved;
+  final RxBool showRemoteCursor;
   final Widget Function(Widget)? listenerBuilder;
 
   ImagePaint(
@@ -1098,6 +1100,7 @@ class ImagePaint extends StatefulWidget {
       required this.cursorOverImage,
       required this.keyboardEnabled,
       required this.remoteCursorMoved,
+      required this.showRemoteCursor,
       this.listenerBuilder})
       : super(key: key);
 
@@ -1114,6 +1117,7 @@ class _ImagePaintState extends State<ImagePaint> {
   RxBool get cursorOverImage => widget.cursorOverImage;
   RxBool get keyboardEnabled => widget.keyboardEnabled;
   RxBool get remoteCursorMoved => widget.remoteCursorMoved;
+  RxBool get showRemoteCursor => widget.showRemoteCursor;
   Widget Function(Widget)? get listenerBuilder => widget.listenerBuilder;
 
   @override
@@ -1127,6 +1131,10 @@ class _ImagePaintState extends State<ImagePaint> {
     bool isViewOriginal() => c.viewStyle.style == kRemoteViewStyleOriginal;
 
     mouseRegion({child}) => Obx(() {
+          if (showRemoteCursor.isFalse) {
+            return MouseRegion(
+                cursor: MouseCursor.defer, onHover: (evt) {}, child: child);
+          }
           double getCursorScale() {
             var c = Provider.of<CanvasModel>(context);
             if (isDesktop) {
