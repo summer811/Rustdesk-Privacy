@@ -1,0 +1,36 @@
+name: Build WinUHid Driver
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout WinUHid
+        uses: actions/checkout@v4
+        with:
+          repository: cgutman/WinUHid
+          path: WinUHid
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build WinUHid driver
+        working-directory: WinUHid
+        run: msbuild "WinUHid Driver\WinUHid Driver.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="${{ github.workspace }}\WinUHid\" /m /verbosity:minimal
+
+      - name: Build WinUHid user library
+        working-directory: WinUHid
+        run: msbuild "WinUHid\WinUHid.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="${{ github.workspace }}\WinUHid\" /m /verbosity:minimal
+
+      - name: Upload WinUHid driver and library
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinUHidDriver-x64-Release
+          path: |
+            WinUHid/build/Release/x64/**
+            WinUHid/WinUHid/WinUHid.h
+          if-no-files-found: error
