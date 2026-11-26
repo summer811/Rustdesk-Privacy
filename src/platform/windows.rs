@@ -4994,6 +4994,9 @@ ProcessId=10136
 }
 
 pub fn inject_touch(contacts: &[(i32, i32)], _center: (i32, i32), phase: i32) {
+    if inject_touch_pipe(contacts, phase) {
+        return;
+    }
     use std::mem::transmute;
     use std::sync::Once;
     use winapi::shared::windef::{POINT, RECT};
@@ -5064,4 +5067,68 @@ pub fn inject_touch(contacts: &[(i32, i32)], _center: (i32, i32), phase: i32) {
     unsafe {
         inject(infos.len() as u32, infos.as_ptr());
     }
+}
+
+fn inject_touch_pipe(contacts: &[(i32, i32)], phase: i32) -> bool {
+    use std::sync::Mutex;
+    use winapi::um::fileapi::{CreateFileW, WriteFile, OPEN_EXISTING};
+    use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
+    use winapi::um::winnt::{GENERIC_WRITE, HANDLE};
+
+    static PIPE: Mutex<usize> = Mutex::new(0);
+    let mut guard = match PIPE.lock() {
+        Ok(guard) => guard,
+        Err(_) => return false,
+    };
+    let mut handle = *guard as HANDLE;
+    if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+        let path: Vec<u16> = "\\\\.\\pipe\\rustdesk_touch\0".encode_utf16().collect();
+        handle = unsafe {
+            CreateFileW(
+                path.as_ptr(),
+                GENERIC_WRITE,
+                0,
+                std::ptr::null_mut(),
+                OPEN_EXISTING,
+                0,
+                std::ptr::null_mut(),
+            )
+        };
+        if handle == INVALID_HANDLE_VALUE {
+            *guard = 0;
+            return false;
+        }
+        *guard = handle as usize;
+    }
+    #[repr(C)]
+    struct TouchMessage {
+        x: i32,
+        y: i32,
+        down: i32,
+    }
+    let first = contacts.first().copied().unwrap_or((0, 0));
+    let down = phase != 2 && !contacts.is_empty();
+    let message = TouchMessage {
+        x: first.0,
+        y: first.1,
+        down: down as i32,
+    };
+    let mut written = 0u32;
+    let ok = unsafe {
+        WriteFile(
+            handle,
+            &message as *const _ as *const _,
+            std::mem::size_of::<TouchMessage>() as u32,
+            &mut written,
+            std::ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        unsafe {
+            CloseHandle(handle);
+        }
+        *guard = 0;
+        return false;
+    }
+    true
 }

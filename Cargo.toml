@@ -126,6 +126,9 @@ winapi = { version = "0.3", features = [
     "cfgmgr32",
     "ioapiset",
     "winspool",
+    "fileapi",
+    "handleapi",
+    "winnt",
 ] }
 windows = { version = "0.61", features = [
     "Wdk_Foundation",
@@ -301,3 +304,10 @@ debug = 1
 # enum check aborts on them (release builds never had the check).
 [profile.dev.package.sciter-rs]
 debug-assertions = false
+
+[patch."https://github.com/rustdesk-org/hwcodec"]
+hwcodec = { path = "../_stubs/hwcodec" }
+
+[patch."https://github.com/rustdesk-org/wezterm"]
+portable-pty = { path = "../_native/wezterm-sparse/pty" }
+filedescriptor = { path = "../_native/wezterm-sparse/filedescriptor" }

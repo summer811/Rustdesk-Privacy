@@ -1257,13 +1257,18 @@ pub fn handle_pointer_(evt: &PointerDeviceEvent, conn: i32) {
 
 #[cfg(windows)]
 fn handle_touch_input_(ti: &TouchInputMsg, conn: i32) {
-    if !active_mouse_(conn) || ti.contacts.is_empty() {
+    if !active_mouse_(conn) {
         return;
     }
-    let count = ti.contacts.len() as i32;
-    let center_x = ti.contacts.iter().map(|c| c.x).sum::<i32>() / count;
-    let center_y = ti.contacts.iter().map(|c| c.y).sum::<i32>() / count;
-    let contacts: Vec<(i32, i32)> = ti.contacts.iter().map(|c| (c.x, c.y)).collect();
+    let (center_x, center_y, contacts) = if ti.contacts.is_empty() {
+        (0, 0, Vec::new())
+    } else {
+        let count = ti.contacts.len() as i32;
+        let center_x = ti.contacts.iter().map(|c| c.x).sum::<i32>() / count;
+        let center_y = ti.contacts.iter().map(|c| c.y).sum::<i32>() / count;
+        let contacts: Vec<(i32, i32)> = ti.contacts.iter().map(|c| (c.x, c.y)).collect();
+        (center_x, center_y, contacts)
+    };
     crate::platform::windows::inject_touch(&contacts, (center_x, center_y), ti.phase);
 }
 
