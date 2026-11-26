@@ -1942,6 +1942,13 @@ fn session_send_touch_event(
 ) {
     match v.get("t").and_then(|t| t.as_str()) {
         Some("scale") => session_send_touch_scale(session_id, v, alt, ctrl, shift, command),
+        Some("native_scale") => {
+            if let Some(scale) = v.get("v").and_then(|s| s.as_i64()) {
+                if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+                    session.send_native_touch_scale(scale as i32);
+                }
+            }
+        }
         Some(pan_event) => {
             session_send_touch_pan(session_id, v, pan_event, alt, ctrl, shift, command)
         }

@@ -62,6 +62,10 @@ static TOUCH_ACTIVE: AtomicBool = AtomicBool::new(false);
 static TOUCH_PINCH: AtomicBool = AtomicBool::new(false);
 static TOUCH_START_X: AtomicI32 = AtomicI32::new(0);
 static TOUCH_START_Y: AtomicI32 = AtomicI32::new(0);
+static TOUCH_CENTER_X: AtomicI32 = AtomicI32::new(960);
+static TOUCH_CENTER_Y: AtomicI32 = AtomicI32::new(540);
+static TOUCH_PINCH_DIST: AtomicI32 = AtomicI32::new(80);
+static TOUCH_PINCH_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Default)]
 pub struct Session<T: InvokeUiSession> {
@@ -1241,6 +1245,29 @@ impl<T: InvokeUiSession> Session<T> {
         send_pointer_device_event(evt, false, false, false, false, self);
     }
 
+    pub fn send_native_touch_scale(&self, scale: i32) {
+        let cx = TOUCH_CENTER_X.load(Ordering::SeqCst);
+        let cy = TOUCH_CENTER_Y.load(Ordering::SeqCst);
+        if scale == 0 {
+            if TOUCH_PINCH_ACTIVE.swap(false, Ordering::SeqCst) {
+                let d = TOUCH_PINCH_DIST.load(Ordering::SeqCst);
+                self.send_touch_input(&[(cx - d / 2, cy), (cx + d / 2, cy)], 2);
+            }
+            TOUCH_PINCH_DIST.store(80, Ordering::SeqCst);
+            return;
+        }
+        let prev = TOUCH_PINCH_DIST.load(Ordering::SeqCst);
+        let next = ((prev as i64 * scale as i64) / 1000).clamp(20, 2000) as i32;
+        TOUCH_PINCH_DIST.store(next, Ordering::SeqCst);
+        let first = !TOUCH_PINCH_ACTIVE.swap(true, Ordering::SeqCst);
+        if first {
+            self.send_touch_input(&[(cx, cy)], 2);
+            self.send_touch_input(&[(cx - next / 2, cy), (cx + next / 2, cy)], 0);
+        } else {
+            self.send_touch_input(&[(cx - next / 2, cy), (cx + next / 2, cy)], 1);
+        }
+    }
+
     #[inline]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn is_scroll_reverse_mode(&self) -> bool {
@@ -1305,7 +1332,13 @@ impl<T: InvokeUiSession> Session<T> {
             }
         }
 
-        if crate::common::get_local_option("touch-mode") == "true" {
+        if matches!(event_type, MOUSE_TYPE_MOVE | MOUSE_TYPE_DOWN | MOUSE_TYPE_UP) {
+            TOUCH_CENTER_X.store(x, Ordering::SeqCst);
+            TOUCH_CENTER_Y.store(y, Ordering::SeqCst);
+        }
+
+        let touch_mode = crate::common::get_local_option("touch-mode");
+        if touch_mode == "true" || touch_mode == "Y" {
             let buttons = mask >> 3;
             if buttons == MOUSE_BUTTON_LEFT {
                 match event_type {

@@ -488,6 +488,20 @@ class _RawTouchGestureDetectorRegionState
       }
     } else {
       // mobile
+      if (ffi.ffiModel.touchMode &&
+          ffi.ffiModel.pi.platform == kPeerPlatformWindows) {
+        final scale = ((d.scale - _scale) * 1000).toInt();
+        _scale = d.scale;
+        if (scale != 0) {
+          await bind.sessionSendPointer(
+              sessionId: sessionId,
+              msg: json.encode(
+                  PointerEventToRust(
+                          kPointerEventKindTouch, 'native_scale', scale)
+                      .toJson()));
+        }
+        return;
+      }
       ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
       _scale = d.scale;
       ffi.canvasModel.panX(d.focalPointDelta.dx);
@@ -507,6 +521,14 @@ class _RawTouchGestureDetectorRegionState
               PointerEventToRust(kPointerEventKindTouch, 'scale', 0).toJson()));
     } else {
       // mobile
+      if (ffi.ffiModel.touchMode &&
+          ffi.ffiModel.pi.platform == kPeerPlatformWindows) {
+        await bind.sessionSendPointer(
+            sessionId: sessionId,
+            msg: json.encode(
+                PointerEventToRust(kPointerEventKindTouch, 'native_scale', 0)
+                    .toJson()));
+      }
       _scale = 1;
       // No idea why we need to set the view style to "" here.
       // bind.sessionSetViewStyle(sessionId: sessionId, value: "");
