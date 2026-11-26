@@ -4993,16 +4993,15 @@ ProcessId=10136
     }
 }
 
-pub fn inject_touch(contacts: &[(i32, i32)], center: (i32, i32), phase: i32) {
+pub fn inject_touch(contacts: &[(i32, i32)], _center: (i32, i32), phase: i32) {
     use std::mem::transmute;
     use std::sync::Once;
     use winapi::shared::windef::{POINT, RECT};
     use winapi::um::libloaderapi::{GetModuleHandleA, GetProcAddress};
     use winapi::um::winuser::{
-        GetCursorPos, POINTER_FLAG_DOWN, POINTER_FLAG_INCONTACT, POINTER_FLAG_INRANGE,
-        POINTER_FLAG_UPDATE, POINTER_FLAG_UP, POINTER_TOUCH_INFO, PT_TOUCH,
-        TOUCH_FEEDBACK_DEFAULT, TOUCH_FLAG_NONE, TOUCH_MASK_CONTACTAREA, TOUCH_MASK_ORIENTATION,
-        TOUCH_MASK_PRESSURE,
+        POINTER_FLAG_DOWN, POINTER_FLAG_INCONTACT, POINTER_FLAG_INRANGE, POINTER_FLAG_UPDATE,
+        POINTER_FLAG_UP, POINTER_TOUCH_INFO, PT_TOUCH, TOUCH_FEEDBACK_INDIRECT,
+        TOUCH_MASK_CONTACTAREA, TOUCH_MASK_ORIENTATION, TOUCH_MASK_PRESSURE,
     };
 
     let user32 = unsafe { GetModuleHandleA(b"user32.dll\0".as_ptr() as *const _) };
@@ -5017,7 +5016,7 @@ pub fn inject_touch(contacts: &[(i32, i32)], center: (i32, i32), phase: i32) {
         if !init.is_null() {
             let init: unsafe extern "system" fn(u32, u32) -> i32 = unsafe { transmute(init) };
             unsafe {
-                init(10, TOUCH_FEEDBACK_DEFAULT);
+                init(10, TOUCH_FEEDBACK_INDIRECT);
             }
         }
     });
@@ -5029,17 +5028,10 @@ pub fn inject_touch(contacts: &[(i32, i32)], center: (i32, i32), phase: i32) {
     let inject: unsafe extern "system" fn(u32, *const POINTER_TOUCH_INFO) -> i32 =
         unsafe { transmute(inject) };
 
-    let mut cursor = POINT { x: 0, y: 0 };
-    unsafe {
-        if GetCursorPos(&mut cursor) == 0 {
-            return;
-        }
-    }
-
     let mut infos = Vec::with_capacity(contacts.len());
     for (id, (x, y)) in contacts.iter().enumerate() {
-        let sx = cursor.x + (*x - center.0);
-        let sy = cursor.y + (*y - center.1);
+        let sx = *x;
+        let sy = *y;
         let mut info: POINTER_TOUCH_INFO = unsafe { std::mem::zeroed() };
         info.pointerInfo.pointerType = PT_TOUCH;
         info.pointerInfo.pointerId = id as u32;
@@ -5050,7 +5042,7 @@ pub fn inject_touch(contacts: &[(i32, i32)], center: (i32, i32), phase: i32) {
             1 => POINTER_FLAG_UPDATE | POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT,
             _ => POINTER_FLAG_UP,
         };
-        info.touchFlags = TOUCH_FLAG_NONE;
+        info.touchFlags = TOUCH_FEEDBACK_INDIRECT;
         info.touchMask = TOUCH_MASK_CONTACTAREA | TOUCH_MASK_ORIENTATION | TOUCH_MASK_PRESSURE;
         info.rcContact = RECT {
             left: sx - 4,
