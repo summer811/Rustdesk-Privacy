@@ -114,6 +114,8 @@ class _RawTouchGestureDetectorRegionState
   FfiModel get ffiModel => widget.ffiModel;
   InputModel get inputModel => widget.inputModel;
   bool get handleTouch => (isDesktop || isWebDesktop) || ffiModel.touchMode;
+  bool get _nativeTouch =>
+      ffiModel.touchMode && ffiModel.pi.platform == kPeerPlatformWindows;
   SessionID get sessionId => ffi.sessionId;
   bool get canvasLocked => isMobile && ffi.canvasModel.locked;
 
@@ -387,7 +389,8 @@ class _RawTouchGestureDetectorRegionState
             .move(_cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
       }
       // In relative mouse mode, skip mouse down - only send movement via sendMobileRelativeMouseMove
-      if (!inputModel.relativeMouseMode.value) {
+      // Native touch on Windows needs the absolute down even when relative mode is on.
+      if (!inputModel.relativeMouseMode.value || _nativeTouch) {
         await inputModel.sendMouse('down', MouseButtons.left);
       }
       await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
@@ -415,7 +418,7 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     // In relative mouse mode, send delta directly without position tracking.
-    if (inputModel.relativeMouseMode.value) {
+    if (inputModel.relativeMouseMode.value && !_nativeTouch) {
       await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
     } else {
       await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
@@ -432,7 +435,7 @@ class _RawTouchGestureDetectorRegionState
     }
     if (handleTouch) {
       // In relative mouse mode, skip mouse up - matches the skipped mouse down in onOneFingerPanStart
-      if (!inputModel.relativeMouseMode.value) {
+      if (!inputModel.relativeMouseMode.value || _nativeTouch) {
         await inputModel.sendMouse('up', MouseButtons.left);
       }
     }

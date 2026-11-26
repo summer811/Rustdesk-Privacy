@@ -1386,6 +1386,10 @@ impl<T: InvokeUiSession> Session<T> {
                 }
             }
             if event_type == MOUSE_TYPE_MOVE && buttons == 0 {
+                if TOUCH_ACTIVE.load(Ordering::SeqCst) {
+                    self.send_touch_input(&[(x, y)], 1);
+                    return;
+                }
                 return;
             }
         }
