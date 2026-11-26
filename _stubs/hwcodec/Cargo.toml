@@ -1,0 +1,11 @@
+[package]
+name = "hwcodec"
+version = "0.8.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+vram = []
