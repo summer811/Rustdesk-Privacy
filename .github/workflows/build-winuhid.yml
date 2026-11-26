@@ -13,16 +13,14 @@ jobs:
           repository: cgutman/WinUHid
           path: WinUHid
 
-      - name: Install Windows Driver Kit
+      - name: Install Windows Driver Kit 22621
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $setup = Join-Path $env:RUNNER_TEMP 'wdksetup.exe'
-          Invoke-WebRequest -Uri 'https://download.microsoft.com/download/41fb59c2-1723-45f9-a270-96b73ad58233/KIT_BUNDLE_WDK_MEDIACREATION/wdksetup.exe' -OutFile $setup
-          $p = Start-Process $setup -ArgumentList '/quiet','/features','+','/norestart' -Wait -PassThru
-          Write-Host "wdksetup exit: $($p.ExitCode)"
-          if ($p.ExitCode -ne 0) { throw "wdksetup failed: $($p.ExitCode)" }
+          winget install --id Microsoft.WindowsWDK.10.0.22621 --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget WDK install failed: $LASTEXITCODE" }
           Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Include\wdf' -Recurse -Filter wdf.h | Select-Object -First 1
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\build' -Directory | Select-Object Name
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
