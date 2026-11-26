@@ -13,14 +13,19 @@ jobs:
           repository: cgutman/WinUHid
           path: WinUHid
 
-      - name: Install Windows Driver Kit 22621
+      - name: Install Windows Driver Kit 22621 with VS integration
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          winget install --id Microsoft.WindowsWDK.10.0.22621 --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
-          if ($LASTEXITCODE -ne 0) { throw "winget WDK install failed: $LASTEXITCODE" }
+          $setup = Join-Path $env:RUNNER_TEMP 'wdksetup-22621.exe'
+          Invoke-WebRequest -Uri 'https://download.microsoft.com/download/7/b/f/7bfc8dbe-00cb-47de-b856-70e696ef4f46/wdk/wdksetup.exe' -OutFile $setup
+          $p = Start-Process $setup -ArgumentList '/quiet','/features','+','/norestart' -Wait -PassThru
+          Write-Host "wdksetup exit: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "wdksetup failed: $($p.ExitCode)" }
           Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Include\wdf' -Recurse -Filter wdf.h | Select-Object -First 1
-          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\build' -Directory | Select-Object Name
+          $tasks = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\build\10.0.22621.0\bin' -Filter 'Microsoft.DriverKit.Build.Tasks*' -ErrorAction SilentlyContinue
+          $tasks | Select-Object Name,Length
+          if (-not $tasks) { throw 'DriverKit build tasks missing after WDK install' }
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
